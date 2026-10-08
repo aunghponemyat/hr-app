@@ -1,4 +1,4 @@
-.PHONY: install check check-backend check-frontend format dev-backend dev-frontend db-up test-db-up
+.PHONY: install check check-backend check-frontend format dev-backend dev-frontend db-up test-db-up migrate seed-reference
 
 install:
 	cd backend && poetry install --extras dev
@@ -9,7 +9,7 @@ check: check-backend check-frontend
 check-backend:
 	cd backend && poetry run ruff check .
 	cd backend && poetry run ruff format --check .
-	cd backend && poetry run mypy app scripts tests
+	cd backend && poetry run mypy app scripts tests alembic
 	cd backend && poetry run pytest
 
 check-frontend:
@@ -35,3 +35,9 @@ db-up:
 
 test-db-up:
 	docker compose --profile test up -d --wait mysql-test
+
+migrate:
+	cd backend && poetry run alembic upgrade head
+
+seed-reference:
+	cd backend && poetry run python -m scripts.seed_reference_data
