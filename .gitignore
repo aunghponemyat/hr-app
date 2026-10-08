@@ -25,3 +25,13 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Tool caches and generated build metadata
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.tsbuildinfo
+*.egg-info/
+backend/.certs/
+frontend/coverage/
