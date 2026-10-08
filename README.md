@@ -1,9 +1,9 @@
 # HR Management & Attendance
 
-The MVP follows [AGENTS.md](AGENTS.md) in phase order. Phase 1 is complete:
-the API/application scaffolding and development checks.
-Authentication, database tables, attendance, leave, and admin workflows follow in
-Phases 2–10; the current frontend is an application shell.
+The MVP follows [AGENTS.md](AGENTS.md) in phase order. Phases 1 and 2 are complete:
+application scaffolding, the MySQL schema, Alembic migrations, and reference seeding.
+Authentication, attendance, leave, and admin workflows follow in Phases 3–10;
+the current frontend is an application shell.
 
 ## Requirements
 
@@ -20,6 +20,8 @@ cp .env.example backend/.env
 cp frontend/.env.example frontend/.env
 make install
 make db-up
+make migrate
+make seed-reference
 ```
 
 Replace `JWT_SECRET_KEY` in `backend/.env` with a random secret before enabling
@@ -69,6 +71,7 @@ examples; use separate credentials and secrets for production.
 ## Checks
 
 ```bash
+make test-db-up
 make check
 ```
 
@@ -77,33 +80,64 @@ ESLint, Prettier, strict TypeScript, Vitest/React Testing Library, and a product
 build. `make format` applies the configured formatters. Individual check targets
 are `make check-backend` and `make check-frontend`.
 
-Phase 1 tests cover public liveness, environment validation, production docs
-gating, CORS restrictions, and error handling/redaction. Tests that touch database
-tables will use real MySQL with transactional fixtures beginning in Phase 2.
-Start the isolated test service with:
-
-```bash
-make test-db-up
-```
+Tests cover public liveness, environment validation, production docs gating, CORS,
+error redaction, migration upgrade/downgrade and model agreement, CHECK/unique/FK
+constraints, timestamp defaults and UTC conversion, relationships, and seed
+idempotency. Database tests use real MySQL and transaction/savepoint fixtures so
+service commits cannot persist fixture data. Migrations are included in strict mypy checks.
 
 It runs on loopback port 3307, uses `hr_app_test`, and stores data in temporary
 container memory. The development database uses loopback port 3306 and a named
 volume. `docker compose stop` stops services while preserving development data.
+The migration round-trip test rebuilds the isolated test schema through Alembic.
+`TEST_DATABASE_URL` must name a dedicated database ending in `_test`, with a name
+different from the development database. Never point it at a database containing
+data you need to retain.
 
-## Migration and bootstrap workflow (upcoming phases)
+## Migrations and reference data
 
-Phase 2 will add Alembic migrations and reference seeding. Phase 3 will add the
-first-admin bootstrap command. Once those phases are implemented, run from
-`backend/`:
+Run from `backend/`, or use the root `make migrate` and `make seed-reference` targets:
 
 ```bash
 poetry run alembic upgrade head
 poetry run python -m scripts.seed_reference_data
+poetry run alembic check
+```
+
+The initial migration creates all 15 business tables with InnoDB/utf8mb4,
+unsigned identifiers, foreign keys, indexes, and CHECK constraints. Timestamps use
+microsecond precision, are stored in UTC, and return as timezone-aware UTC values
+from the ORM. Naive timestamp writes are rejected. `updated_at` changes in MySQL
+when the row changes, including updates outside the ORM.
+
+The seed is transactional and repeatable: five roles, 22 permissions, 60 grants,
+seven leave types, six leave reasons, and the employee ID sequence. It reconciles
+seeded role permissions, preserves an advanced sequence counter, and leaves
+deactivated leave options inactive. There are no employees or passwords in the seed.
+
+To add a schema change, update models on a feature branch, then generate and review
+the migration against your development database:
+
+```bash
+poetry run alembic revision --autogenerate -m 'describe schema change'
+poetry run alembic upgrade head
+poetry run alembic check
+```
+
+All schema changes must go through Alembic. For an isolated disposable database,
+`poetry run alembic downgrade base` removes the app tables; `upgrade head` recreates
+them. The downgrade is destructive and is for disposable data only.
+
+## First admin (Phase 3, upcoming)
+
+Phase 3 will add the bootstrap command. Once implemented, run from `backend/`:
+
+```bash
 poetry run python -m scripts.create_admin --first-name Admin --last-name User --role hr
 ```
 
 The bootstrap password will be prompted securely, never printed. The first login
-requires a password change. All schema changes must go through Alembic.
+requires a password change.
 
 ## Geolocation and security
 
