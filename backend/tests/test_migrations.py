@@ -17,7 +17,7 @@ def test_initial_migration_round_trip_and_matches_models(db_engine: Engine) -> N
         }
         command.check(config)
         assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
-            "0001"
+            "0002"
         )
 
 
@@ -29,7 +29,7 @@ def test_mysql_table_options_and_unsigned_identifiers(db_engine: Engine) -> None
                 "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME <> 'alembic_version'"
             )
         ).all()
-        assert len(rows) == 15
+        assert len(rows) == len(Base.metadata.tables)
         assert all(
             row.ENGINE == "InnoDB" and row.TABLE_COLLATION.startswith("utf8mb4") for row in rows
         )

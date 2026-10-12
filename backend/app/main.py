@@ -6,8 +6,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import Settings, get_settings
 from app.core.errors import register_error_handlers
+from app.routers.auth import router as auth_router
 from app.routers.health import router as health_router
+from app.routers.me import router as me_router
 from app.schemas.common import ErrorResponse
+from app.services.login_limiter import LoginRateLimiter
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -21,9 +24,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         redoc_url="/redoc" if docs_enabled else None,
         openapi_url="/openapi.json" if docs_enabled else None,
         responses={
-            status: {"model": ErrorResponse} for status in (401, 403, 404, 409, 422, 429, 500)
+            status: {"model": ErrorResponse} for status in (401, 403, 404, 409, 422, 429, 500, 503)
         },
     )
+
+    def application_settings() -> Settings:
+        return config
+
+    application.dependency_overrides[get_settings] = application_settings
+    application.state.login_limiter = LoginRateLimiter(config)
     application.add_middleware(
         CORSMiddleware,
         allow_origins=config.allowed_origins,
@@ -40,10 +49,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         request.state.request_id = uuid4().hex
         response = await call_next(request)
         response.headers["X-Request-ID"] = request.state.request_id
+        if request.url.path.startswith("/api/v1/auth/") or request.url.path == "/api/v1/me":
+            response.headers["Cache-Control"] = "no-store"
         return response
 
     register_error_handlers(application)
     application.include_router(health_router)
+    application.include_router(auth_router)
+    application.include_router(me_router)
     return application
 
 
