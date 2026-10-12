@@ -1,16 +1,23 @@
 from collections.abc import Iterator
+from secrets import token_urlsafe
+from typing import Annotated
 
 import pytest
+from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
+from pydantic import SecretStr
 from sqlalchemy import Engine, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from alembic import command
 from app.core.config import Settings
-from app.core.database import create_database_engine
+from app.core.database import create_database_engine, get_db
+from app.core.security import hash_password
+from app.deps.auth import require_password_changed
 from app.main import create_app
 from app.models import Employee, Role
+from app.schemas.auth import MessageResponse
 from app.services.reference_service import seed_reference_data
 from tests.database import migration_config, validate_test_database_url
 
@@ -92,3 +99,52 @@ def manager(seeded_session: Session) -> Employee:
     seeded_session.add(result)
     seeded_session.flush()
     return result
+
+
+@pytest.fixture
+def auth_settings() -> Settings:
+    return Settings(
+        _env_file=None,
+        app_env="test",
+        jwt_secret_key=token_urlsafe(48),
+        login_rate_limit_ip=200,
+        login_rate_limit_employee=100,
+    )
+
+
+@pytest.fixture
+def initial_password() -> SecretStr:
+    return SecretStr("InitialPass123")
+
+
+@pytest.fixture
+def auth_employee(
+    employee: Employee, seeded_session: Session, initial_password: SecretStr
+) -> Employee:
+    employee.password_hash = hash_password(initial_password.get_secret_value())
+    seeded_session.flush()
+    return employee
+
+
+@pytest.fixture
+def auth_app(seeded_session: Session, auth_settings: Settings) -> FastAPI:
+    app = create_app(auth_settings)
+
+    def override_db() -> Iterator[Session]:
+        yield seeded_session
+
+    app.dependency_overrides[get_db] = override_db
+
+    @app.get("/api/v1/test-protected", response_model=MessageResponse)
+    def protected(
+        employee: Annotated[Employee, Depends(require_password_changed)],
+    ) -> MessageResponse:
+        return MessageResponse(message=f"Welcome {employee.employee_id}")
+
+    return app
+
+
+@pytest.fixture
+def auth_client(auth_app: FastAPI) -> Iterator[TestClient]:
+    with TestClient(auth_app, raise_server_exceptions=False) as client:
+        yield client
