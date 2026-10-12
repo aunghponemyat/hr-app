@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     cookie_secure: bool = False
     max_failed_logins: int = Field(default=5, gt=0)
     lockout_minutes: int = Field(default=15, gt=0)
+    login_rate_limit_ip: int = Field(default=30, gt=0)
+    login_rate_limit_employee: int = Field(default=10, gt=0)
+    login_rate_limit_window_seconds: int = Field(default=60, gt=0)
     app_env: Literal["development", "test", "production"] = "development"
     app_timezone: str = "Asia/Bangkok"
     working_weekdays: str = "0,1,2,3,4"

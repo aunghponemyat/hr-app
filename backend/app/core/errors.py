@@ -21,12 +21,14 @@ class AppError(Exception):
         code: str,
         message: str,
         details: dict[str, JsonValue] | None = None,
+        headers: Mapping[str, str] | None = None,
     ) -> None:
         super().__init__(code)
         self.status_code = status_code
         self.code = code
         self.message = message
         self.details = details
+        self.headers = headers
 
 
 def error_response(
@@ -42,7 +44,9 @@ def error_response(
 
 async def app_error_handler(_request: Request, exc: Exception) -> JSONResponse:
     error = cast(AppError, exc)
-    return error_response(error.status_code, error.code, error.message, error.details)
+    return error_response(
+        error.status_code, error.code, error.message, error.details, error.headers
+    )
 
 
 async def validation_error_handler(_request: Request, exc: Exception) -> JSONResponse:
