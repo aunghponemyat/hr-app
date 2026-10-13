@@ -30,15 +30,21 @@ class TokenPair:
     refresh_token: str = field(repr=False)
 
 
-def load_employee(session: Session, employee_id: int, *, lock: bool = False) -> Employee | None:
+def load_employee(
+    session: Session,
+    employee_id: int,
+    *,
+    lock: bool = False,
+    include_permissions: bool = True,
+) -> Employee | None:
     query = (
         select(Employee)
         .where(Employee.id == employee_id)
-        .options(
-            joinedload(Employee.role).selectinload(Role.permissions), joinedload(Employee.team)
-        )
+        .options(joinedload(Employee.role), joinedload(Employee.team))
         .execution_options(populate_existing=True)
     )
+    if include_permissions:
+        query = query.options(joinedload(Employee.role).selectinload(Role.permissions))
     if lock:
         query = query.with_for_update()
     return session.execute(query).scalar_one_or_none()
@@ -121,7 +127,7 @@ def login(session: Session, credentials: LoginRequest, settings: Settings) -> To
 
 def authenticate(session: Session, token: str, settings: Settings) -> Employee:
     claims = decode_token(token, "access", settings)
-    employee = load_employee(session, int(claims.sub))
+    employee = load_employee(session, int(claims.sub), include_permissions=False)
     if (
         employee is None
         or not employee.is_active
