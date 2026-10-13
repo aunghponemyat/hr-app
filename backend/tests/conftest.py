@@ -19,6 +19,7 @@ from app.main import create_app
 from app.models import Employee, Role
 from app.schemas.auth import MessageResponse
 from app.services.reference_service import seed_reference_data
+from tests.authz_support import AuthzScenario, create_scenario, install_authz_probes
 from tests.database import migration_config, validate_test_database_url
 
 
@@ -146,5 +147,17 @@ def auth_app(seeded_session: Session, auth_settings: Settings) -> FastAPI:
 
 @pytest.fixture
 def auth_client(auth_app: FastAPI) -> Iterator[TestClient]:
+    with TestClient(auth_app, raise_server_exceptions=False) as client:
+        yield client
+
+
+@pytest.fixture
+def scenario(seeded_session: Session, initial_password: SecretStr) -> AuthzScenario:
+    return create_scenario(seeded_session, initial_password.get_secret_value())
+
+
+@pytest.fixture
+def authz_client(auth_app: FastAPI, scenario: AuthzScenario) -> Iterator[TestClient]:
+    install_authz_probes(auth_app)
     with TestClient(auth_app, raise_server_exceptions=False) as client:
         yield client
