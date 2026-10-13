@@ -6,9 +6,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import Settings, get_settings
 from app.core.errors import register_error_handlers
+from app.routers.admin_employees import router as admin_employees_router
+from app.routers.admin_locations import router as admin_locations_router
+from app.routers.admin_teams import router as admin_teams_router
 from app.routers.auth import router as auth_router
 from app.routers.health import router as health_router
 from app.routers.me import router as me_router
+from app.routers.team import router as team_router
 from app.schemas.common import ErrorResponse
 from app.services.login_limiter import LoginRateLimiter
 
@@ -49,7 +53,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         request.state.request_id = uuid4().hex
         response = await call_next(request)
         response.headers["X-Request-ID"] = request.state.request_id
-        if request.url.path.startswith("/api/v1/auth/") or request.url.path == "/api/v1/me":
+        if request.url.path.startswith("/api/v1/"):
             response.headers["Cache-Control"] = "no-store"
         return response
 
@@ -57,6 +61,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(health_router)
     application.include_router(auth_router)
     application.include_router(me_router)
+    application.include_router(admin_employees_router)
+    application.include_router(admin_teams_router)
+    application.include_router(admin_locations_router)
+    application.include_router(team_router)
     return application
 
 

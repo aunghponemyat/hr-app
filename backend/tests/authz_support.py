@@ -165,7 +165,7 @@ def install_authz_probes(app: FastAPI) -> None:
     """These routes test authorization only and are never installed on the production app."""
     router = APIRouter(prefix="/api/v1")
 
-    @router.get("/team/members", response_model=IdListResponse)
+    @router.get("/authz/team-members", response_model=IdListResponse)
     def members(caller: MemberReader, page: Annotated[PageRequest, Query()]) -> IdListResponse:
         return scoped_list(caller, "employee", page)
 
