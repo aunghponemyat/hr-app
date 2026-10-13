@@ -1,12 +1,11 @@
-from app.core.errors import AppError
-from app.models import Employee
 from app.schemas.auth import ProfileResponse, RoleSummary, TeamSummary
+from app.services.authorization_service import AuthorizationContext, authorize
 
 
-def get_profile(employee: Employee) -> ProfileResponse:
-    permissions = sorted(permission.code for permission in employee.role.permissions)
-    if "profile.read.self" not in permissions:
-        raise AppError(403, "PERMISSION_DENIED", "Permission denied.")
+def get_profile(caller: AuthorizationContext) -> ProfileResponse:
+    employee = caller.employee
+    authorize(caller, "profile", "read", employee)
+    permissions = sorted(permission.code for permission in caller.permissions)
     return ProfileResponse(
         id=employee.id,
         employee_id=employee.employee_id,
