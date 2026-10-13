@@ -168,16 +168,16 @@ def test_pagination_and_counts_use_the_filtered_scope(
     token = login_token(authz_client, scenario.employees["manager_a"], initial_password)
     expected = sorted(scenario.team_ids("a"))
     first = authz_client.get(
-        "/api/v1/team/members", headers=bearer(token), params={"page": 1, "page_size": 2}
+        "/api/v1/authz/team-members", headers=bearer(token), params={"page": 1, "page_size": 2}
     )
     second = authz_client.get(
-        "/api/v1/team/members", headers=bearer(token), params={"page": 2, "page_size": 2}
+        "/api/v1/authz/team-members", headers=bearer(token), params={"page": 2, "page_size": 2}
     )
     assert first.json()["ids"] == expected[:2]
     assert second.json()["ids"] == expected[2:]
     assert first.json()["total"] == second.json()["total"] == len(expected)
     invalid = authz_client.get(
-        "/api/v1/team/members", headers=bearer(token), params={"page_size": 101}
+        "/api/v1/authz/team-members", headers=bearer(token), params={"page_size": 101}
     )
     assert invalid.status_code == 422
 
@@ -198,7 +198,7 @@ def test_duplicate_manager_history_does_not_duplicate_list_results(
     )
     seeded_session.flush()
     token = login_token(authz_client, manager, initial_password)
-    response = authz_client.get("/api/v1/team/members", headers=bearer(token))
+    response = authz_client.get("/api/v1/authz/team-members", headers=bearer(token))
     expected = scenario.team_ids("a")
     assert response.status_code == 200 and set(response.json()["ids"]) == expected
     assert response.json()["total"] == len(response.json()["ids"]) == len(expected)
@@ -275,7 +275,7 @@ def test_self_scope_cannot_satisfy_team_only_endpoint(
     seeded_session.add(RolePermission(role_id=employee.role_id, permission_id=permission.id))
     seeded_session.flush()
     token = login_token(authz_client, employee, initial_password)
-    response = authz_client.get("/api/v1/team/members", headers=bearer(token))
+    response = authz_client.get("/api/v1/authz/team-members", headers=bearer(token))
     assert response.status_code == 403 and response.json()["code"] == "PERMISSION_DENIED"
 
 
@@ -295,7 +295,7 @@ def test_generic_scope_preserves_inactive_employee_history(
 @pytest.mark.parametrize(
     "path",
     [
-        "/api/v1/team/members",
+        "/api/v1/authz/team-members",
         "/api/v1/authz/attendance",
         "/api/v1/authz/admin-create",
         "/api/v1/authz/cache",
@@ -309,7 +309,7 @@ def test_production_app_does_not_publish_authz_probes(settings: Settings) -> Non
     from app.main import create_app
 
     paths = set(create_app(settings).openapi()["paths"])
-    assert "/api/v1/team/members" not in paths
+    assert "/api/v1/authz/team-members" not in paths
     assert not any(path.startswith("/api/v1/authz/") for path in paths)
 
 

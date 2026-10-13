@@ -1,9 +1,9 @@
 # HR Management & Attendance
 
-The MVP follows [AGENTS.md](AGENTS.md) in phase order. Phases 1–4 are complete:
+The MVP follows [AGENTS.md](AGENTS.md) in phase order. Phases 1–5 are complete:
 application scaffolding, the MySQL schema, reference seeding, authentication, and
-first-admin bootstrap, and authorization scope helpers. Administration, attendance,
-leave, and reports follow in Phases 5–8. Frontend authentication begins in Phase 9;
+first-admin bootstrap, authorization scope helpers, and employee/team/location
+administration. Attendance, leave, and reports follow in Phases 6–8. Frontend authentication begins in Phase 9;
 the current frontend is an application shell.
 
 ## Requirements
@@ -90,7 +90,11 @@ idempotency, authentication, lockout/rate limiting, password changes, refresh
 rotation/replay, bootstrap, concurrent ID allocation, and the authorization matrix
 for every seeded role. Scope tests cover cross-team denial, filtered pagination
 and counts, manager removal, current team membership, live role/grant changes,
-target existence protection, and one permission query per request. Database tests use real
+target existence protection, and one permission query per request. Administration tests
+cover HR/C-level setup, denial for every admin endpoint, immutable employee IDs,
+membership and manager history, password reset revocation, reference-preserving
+deletion, filtered lists, audit redaction, and concurrent employee creation and
+last-admin changes. Database tests use real
 MySQL and transaction/savepoint fixtures so
 service commits cannot persist fixture data. Migrations are included in strict mypy checks.
 
@@ -169,6 +173,7 @@ OpenAPI UI; the React login/change-password pages are scheduled for Phase 9.
 | `POST /api/v1/auth/change-password` | Bearer token and JSON `{current_password,new_password}` | Fresh tokens; old sessions/tokens revoked |
 | `POST /api/v1/auth/logout` | Bearer token | Session revoked and refresh cookie cleared |
 | `GET /api/v1/me` | Bearer token | Own profile, current role/permissions/team, password-change flag |
+| `PATCH /api/v1/me` | Bearer token and JSON `{display_name}` | Update or clear own display name; other fields rejected |
 
 The first login requires a password change. `/auth/*` and `GET /me` remain
 available while it is required; protected business routes use
@@ -195,7 +200,7 @@ the database account lockout persists across restarts.
 Auth mutations check browser Origin against configured CORS origins or the API's
 own origin; cross-site requests are rejected. Command-line requests without Origin
 are supported. Access tokens are intended for client memory, and auth/profile
-responses use `Cache-Control: no-store`.
+responses use `Cache-Control: no-store`, as do all private API responses.
 
 ## Backend authorization
 
@@ -229,9 +234,67 @@ least one scope is granted. The returned context is passed to service helpers:
 this same permission loader. Generic scope queries preserve inactive employees
 for history/reporting; dropdown/list services can add their required active filter.
 
-Phase 4's team-member, attendance, leave, and admin probes exist only in the test
-app to prove authorization behavior. Production team/attendance endpoints follow
-in Phases 5–6. This phase changes no database schema.
+Phase 4's authorization probes exist only under `/api/v1/authz/` in the test
+app. Phase 5 provides the production team roster and administration endpoints;
+attendance workflows follow in Phase 6.
+
+## Administration API
+
+Sign in as HR or C-level and complete the required password change. Use a bearer
+token in the OpenAPI UI or an HTTP client; frontend admin pages arrive in Phase 10.
+All administrative endpoints require the corresponding `any` permission in the
+backend. Numeric employee references use the internal `id`, while the generated
+business `employee_id` (such as `EMP0001`) is immutable and used for login.
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET/POST /api/v1/admin/employees` | Search/filter employees or create an account with a default password |
+| `GET/PATCH /api/v1/admin/employees/{id}` | Read or update names, role, team, position, department, activation |
+| `POST /api/v1/admin/employees/{id}/reset-password` | Supply `{default_password}`; require change and revoke old sessions |
+| `GET /api/v1/admin/utils/generate-password` | Generate a random 12-character default password |
+| `GET /api/v1/admin/roles` | Read seeded roles and their permission codes |
+| `GET/POST /api/v1/admin/teams` | List or create teams |
+| `GET/PATCH/DELETE /api/v1/admin/teams/{id}` | Read, update, or delete an unused team |
+| `GET/POST /api/v1/admin/teams/{id}/members` | List current members or assign/move an active employee with `{employee_id}` |
+| `DELETE /api/v1/admin/teams/{id}/members/{employee_id}` | Clear current membership and close history |
+| `GET/POST /api/v1/admin/teams/{id}/managers` | List current managers or assign an eligible active employee with `{employee_id}` |
+| `DELETE /api/v1/admin/teams/{id}/managers/{employee_id}` | Close a manager assignment and immediately remove its scope |
+| `GET/POST /api/v1/admin/teams/{id}/locations` | List or link locations with `{work_location_id}` |
+| `DELETE /api/v1/admin/teams/{id}/locations/{location_id}` | Unlink a location |
+| `GET/POST /api/v1/admin/work-locations` | List or create locations (latitude, longitude, radius 50–100 m) |
+| `GET/PATCH/DELETE /api/v1/admin/work-locations/{id}` | Read, update, or delete an unreferenced location |
+| `GET /api/v1/team/members` | Scoped manager roster, including self; HR/C-level see all employees |
+
+Lists return `{items,total,page,page_size}` with default page size 25 and maximum
+100. Employee filters are `search`, `team_id`, `role_id`, and `is_active`.
+Search matches literal substrings in employee IDs and names. Administrative lists
+retain inactive accounts; inactive employees cannot be assigned as members/managers.
+
+For the setup acceptance flow, create a team and location, link the location,
+create employees using IDs from `/admin/roles`, then assign the new reporting
+manager through the team's `/managers` endpoint. After login and password change,
+that manager can see the team's new employees through `/team/members`.
+Creation returns the default password once, alongside the account. Reset returns
+it once as `{default_password}`. Subsequent reads and audits omit all passwords
+and hashes. Responses must be handled privately and are never cached by the API.
+
+Team moves update current membership and close/open history in one transaction.
+Repeated associations are no-ops; missing removals return 404. Deactivating a
+manager or changing to a role without team/any attendance read permission closes
+their active manager assignments; reactivation requires explicit reassignment.
+The final active administrator is protected by `409 LAST_ADMIN`, including under
+simultaneous changes. Admin status is defined by `employee.create.any`.
+Administrative mutations serialize on the existing ID-sequence row before entity
+locks, a deliberate MVP tradeoff that avoids a schema change.
+
+Team deletion returns `409 TEAM_IN_USE` if any membership/manager history, current
+member, or location link exists. Location deletion returns `409 LOCATION_IN_USE`
+while linked to a team or referenced by attendance. History is preserved.
+Successful deletes return a message. Mutations produce secret-free audit records.
+Employee and manager timestamps are presented in the configured office timezone.
+The roster's `today_status` shows stored attendance or `weekend`; missing attendance
+on a working day returns null. Full attendance and leave derivation follow in
+Phases 6–7.
 
 ## Geolocation and security
 

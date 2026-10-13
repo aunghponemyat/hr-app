@@ -100,7 +100,7 @@ def test_team_members_gate_and_scope(
     authz_client: TestClient, scenario: AuthzScenario, initial_password: SecretStr, actor: str
 ) -> None:
     token = login_token(authz_client, scenario.employees[actor], initial_password)
-    response = authz_client.get("/api/v1/team/members", headers=bearer(token))
+    response = authz_client.get("/api/v1/authz/team-members", headers=bearer(token))
     if actor in {"employee_a", "senior"}:
         assert response.status_code == 403 and response.json()["code"] == "PERMISSION_DENIED"
     else:
@@ -221,7 +221,7 @@ def test_manager_self_access_is_independent_of_current_team(
         "/api/v1/authz/attendance/target", headers=bearer(token), params={"employee_id": manager.id}
     )
     assert self_read.status_code == 200
-    listed = authz_client.get("/api/v1/team/members", headers=bearer(token))
+    listed = authz_client.get("/api/v1/authz/team-members", headers=bearer(token))
     assert set(listed.json()["ids"]) == scenario.team_ids("a") | {manager.id}
 
 
@@ -237,7 +237,7 @@ def test_role_change_takes_effect_with_existing_access_token(
         select(Role.id).where(Role.name == "employee")
     ).scalar_one()
     seeded_session.flush()
-    response = authz_client.get("/api/v1/team/members", headers=bearer(token))
+    response = authz_client.get("/api/v1/authz/team-members", headers=bearer(token))
     assert response.status_code == 403 and response.json()["code"] == "PERMISSION_DENIED"
     assert (
         authz_client.get("/api/v1/me", headers=bearer(token)).json()["role"]["name"] == "employee"
@@ -278,7 +278,7 @@ def test_password_change_gate_precedes_permission_check(
     employee.must_change_password = True
     seeded_session.flush()
     token = login_token(authz_client, employee, initial_password)
-    response = authz_client.get("/api/v1/team/members", headers=bearer(token))
+    response = authz_client.get("/api/v1/authz/team-members", headers=bearer(token))
     assert response.status_code == 403 and response.json()["code"] == "PASSWORD_CHANGE_REQUIRED"
     assert authz_client.get("/api/v1/me", headers=bearer(token)).status_code == 200
 
