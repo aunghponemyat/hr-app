@@ -1,9 +1,9 @@
 # HR Management & Attendance
 
-The MVP follows [AGENTS.md](AGENTS.md) in phase order. Phases 1–3 are complete:
+The MVP follows [AGENTS.md](AGENTS.md) in phase order. Phases 1–4 are complete:
 application scaffolding, the MySQL schema, reference seeding, authentication, and
-first-admin bootstrap. Authorization scope helpers, administration, attendance,
-leave, and reports follow in Phases 4–8. Frontend authentication begins in Phase 9;
+first-admin bootstrap, and authorization scope helpers. Administration, attendance,
+leave, and reports follow in Phases 5–8. Frontend authentication begins in Phase 9;
 the current frontend is an application shell.
 
 ## Requirements
@@ -87,7 +87,10 @@ Tests cover public liveness, environment validation, production docs gating, COR
 error redaction, migration upgrade/downgrade and model agreement, CHECK/unique/FK
 constraints, timestamp defaults and UTC conversion, relationships, and seed
 idempotency, authentication, lockout/rate limiting, password changes, refresh
-rotation/replay, bootstrap, and concurrent ID allocation. Database tests use real
+rotation/replay, bootstrap, concurrent ID allocation, and the authorization matrix
+for every seeded role. Scope tests cover cross-team denial, filtered pagination
+and counts, manager removal, current team membership, live role/grant changes,
+target existence protection, and one permission query per request. Database tests use real
 MySQL and transaction/savepoint fixtures so
 service commits cannot persist fixture data. Migrations are included in strict mypy checks.
 
@@ -193,6 +196,42 @@ Auth mutations check browser Origin against configured CORS origins or the API's
 own origin; cross-site requests are rejected. Command-line requests without Origin
 are supported. Access tokens are intended for client memory, and auth/profile
 responses use `Cache-Control: no-store`.
+
+## Backend authorization
+
+`app/deps/authz.py` exposes FastAPI dependencies and the scope helpers implemented
+in `app/services/authorization_service.py`. A server-created `AuthorizationContext`
+holds the authenticated employee, database session, and immutable permission
+grants. Permission rows are loaded through `role_permissions` once per role per
+request and cached on `request.state`; no permissions are cached across requests.
+Authorization uses current database permission codes. Codes must match the stored
+resource/action/scope fields; malformed grants are ignored. Role labels and JWT
+role claims do not authorize access.
+
+Use `Depends(require_permission(resource, action))` on a protected handler. It
+authenticates the caller, enforces forced password change, and checks that at
+least one scope is granted. The returned context is passed to service helpers:
+
+- `has_permission` / `scopes_for` return the scopes for the resource/action pair.
+- `authorize` checks a loaded target using self identity, active management of its
+  current team, or an any-scope grant.
+- `resolve_target_employee` combines target lookup with authorization. Self-only
+  callers receive `403 OUT_OF_SCOPE` for both existing and missing foreign IDs;
+  team/any callers may receive `404 NOT_FOUND` for a missing employee.
+- `scoped_employee_ids_query` returns a SQL query for authorized employee IDs.
+  Apply it before list pagination, counts, summaries, or exports. Team scope uses
+  active `team_managers` rows and current `employees.team_id`, and includes the
+  caller; self scope includes only the caller; any scope includes all employees.
+- `is_admin` checks `employee.create.any`. It grants no unrelated actions.
+
+`allowed_scopes` can narrow a dependency to team/any or any-only endpoints.
+`GET /me` explicitly permits access while a password change is required and uses
+this same permission loader. Generic scope queries preserve inactive employees
+for history/reporting; dropdown/list services can add their required active filter.
+
+Phase 4's team-member, attendance, leave, and admin probes exist only in the test
+app to prove authorization behavior. Production team/attendance endpoints follow
+in Phases 5–6. This phase changes no database schema.
 
 ## Geolocation and security
 
