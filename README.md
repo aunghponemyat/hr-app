@@ -1,10 +1,10 @@
 # HR Management & Attendance
 
-The MVP follows [AGENTS.md](AGENTS.md) in phase order. Phases 1–6 are complete:
+The MVP follows [AGENTS.md](AGENTS.md) in phase order. Phases 1–7 are complete:
 application scaffolding, the MySQL schema, reference seeding, authentication, and
 first-admin bootstrap, authorization scope helpers, and employee/team/location
-administration, and attendance with GPS verification and scoped dashboards.
-Leave and reports follow in Phases 7–8. Frontend authentication begins in Phase 9;
+administration, attendance with GPS verification and scoped dashboards, and leave
+management with attendance integration. Reports follow in Phase 8. Frontend authentication begins in Phase 9;
 the current frontend is an application shell.
 
 ## Requirements
@@ -98,7 +98,11 @@ deletion, filtered lists, audit redaction, and concurrent employee creation and
 last-admin changes. Attendance tests cover remote/onsite actions, geodesic
 boundaries, GPS failure rollback, concurrent clock actions, server/local dates,
 overnight rejection, half-day thresholds, scoped reads and pagination, date ranges,
-derived absence/weekend/future statuses, and audited manual corrections.
+derived absence/weekend/future statuses, and audited manual corrections. Leave tests
+cover active options and eligible managers, duration/reason/backdate validation,
+working-day calculations, overlaps and opposite halves, scoped reads/decisions,
+self-decision denial, cancellation, live manager eligibility, audit records,
+calendar/table/roster/summary overlays, and concurrent submissions and state changes.
 Database tests use real
 MySQL and transaction/savepoint fixtures so
 service commits cannot persist fixture data. Migrations are included in strict mypy checks.
@@ -299,7 +303,7 @@ Successful deletes return a message. Mutations produce secret-free audit records
 Employee and manager timestamps are presented in the configured office timezone.
 The roster's `today_status` shows stored attendance or `weekend`; missing attendance
 on a working day returns null. Calendar absence/weekend/future statuses are derived
-by the attendance APIs; approved leave integration follows in Phase 7.
+by the attendance APIs, with approved leave overlaid by Phase 7.
 
 ## Attendance API
 
@@ -332,7 +336,13 @@ The calendar includes every date. Earlier working days without attendance show
 attendance takes precedence on a worked weekend. A current working day without
 attendance has null status so the ongoing day is not marked absent. Summaries
 count present, half-day, absent, and leave days, plus completed worked hours.
-Leave metadata remains null until Phase 7. Tables include derived dates and order
+Approved leave overrides status on working dates, including future dates. A full
+day shows `leave`; one approved half shows `half-day`; opposite approved halves
+together show `leave`. `leave` holds the first request by ID, and `leaves` preserves
+all approved requests for that date. Weekends between leave dates are excluded.
+Times and worked hours remain visible; attendance rows and clock permissions are
+unchanged. Pending/rejected/cancelled requests have no display effect. Visible
+approved leave also contributes available years. Tables include derived dates and order
 by employee ID then date; personal dashboards should pass their own internal ID.
 Counts and pagination apply only to authorized employees, including inactive
 employees retained for history. Team summaries load attendance for the selected
@@ -362,7 +372,63 @@ completed record. Changing a time clears that action's GPS evidence; clearing
 clock-in also clears the location. Status remains explicitly controlled by the
 correction. The response uses office-local timestamps; `updated_by` and a
 before/after audit with reason are written in the same transaction. No schema
-migration is needed for Phase 6.
+migration is needed for Phases 6–7.
+
+## Leave API
+
+All endpoints require authentication and a completed password change. Options and
+creation use `leave.create.self`; reads use current self/team/any leave scope;
+decisions use team/any leave-decision scope. Frontend forms and approval dialogs
+arrive in Phase 10.
+
+| Endpoint | Request/result |
+| --- | --- |
+| `GET /api/v1/leave/options` | Active types/reasons, eligible manager identities, office-local today, weekdays, request/backdate limits |
+| `POST /api/v1/leave-requests` | Create a pending request; server computes the end date |
+| `GET /api/v1/leave-requests` | Paginated own requests; optional `status` filter |
+| `GET /api/v1/leave-requests/team` | Paginated requests in team/any scope; optional `status` and internal `employee_id` filters |
+| `GET /api/v1/leave-requests/{id}` | Scoped request detail, including current employee/manager names and decision |
+| `POST /api/v1/leave-requests/{id}/approve` | Optional `{decision_note}`; selected current manager or any-scope decider |
+| `POST /api/v1/leave-requests/{id}/reject` | Same authorization and optional body as approval |
+| `POST /api/v1/leave-requests/{id}/cancel` | Requester only; pending, or approved with a future start date |
+
+Creation fields are `leave_type_id`, `leave_reason_id`, `reason_text?`,
+`duration_type`, `half_day_period?`, `num_days`, `start_date`,
+`reporting_manager_id`, and `remark?`. Half-day requires morning/afternoon and
+exactly 0.5 days; full-day requires an integer from 1 through the configured
+maximum, without a half-day period. Text fields are capped at 500 characters.
+Reasons with `requires_text` (seeded `other`) require nonblank reason text.
+Ordinary reasons may include optional text. Inactive reference options are rejected.
+
+The start date must be a configured working weekday and within the backdate
+limit. End dates count working days including the start and skip all non-working
+weekdays; `WORKING_WEEKDAYS` controls Saturday/Sunday behavior. Public holidays
+and leave balances are outside the MVP. Submitted fields remain immutable;
+cancellation and a new submission are the available correction flow.
+
+Eligible managers are active managers of the requester's current team, excluding
+the requester, who hold a valid team/any leave-decision grant. If none qualify,
+use active any-scope deciders. No team uses the same fallback. Names prefer display
+name. Submission revalidates eligibility. A team manager may read in-scope requests
+but decide only those selecting them; any-scope deciders can decide another
+employee's pending request regardless of selection. Nobody can decide their own
+request. Role names and JWT role claims do not grant access.
+
+Pending or approved date overlaps return `409 LEAVE_OVERLAP`, except opposite
+halves of the same day. Nonpending decisions and invalid cancellations return
+`409 INVALID_STATE`. Approved cancellation is allowed only before the start date;
+pending cancellation is allowed even on/past that date. Cancellation keeps prior
+decision history and requires requester ownership even for HR/C-level. It does
+not require an invented cancellation permission. Rejected/cancelled requests
+cannot be cancelled again. Decision/cancellation audit snapshots omit the original
+reason and remark; ordinary responses retain them for authorized readers.
+
+Writes lock referenced employees in ascending ID order before request rows.
+Overlap checks use locking reads after the requester lock, and concurrent
+decisions/cancellations serialize on that requester. Deadlocks/lock timeouts roll
+back and return `409 LEAVE_CONFLICT`. Lists filter scope before counts and
+pagination, order newest first, and retain request history. Self-only readers get
+403 for missing/foreign request IDs; team/any readers may get 404 for missing IDs.
 
 ## Geolocation and security
 

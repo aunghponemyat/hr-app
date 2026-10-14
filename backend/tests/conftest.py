@@ -167,6 +167,12 @@ def authz_client(auth_app: FastAPI, scenario: AuthzScenario) -> Iterator[TestCli
 @pytest.fixture
 def attendance_clock(monkeypatch: pytest.MonkeyPatch) -> AttendanceClock:
     clock = AttendanceClock()
-    for module in ("attendance_service", "attendance_read_service", "roster_service"):
+    for module in (
+        "attendance_service",
+        "attendance_read_service",
+        "roster_service",
+        "leave_service",
+        "leave_options_service",
+    ):
         monkeypatch.setattr(f"app.services.{module}.utc_now", clock.now)
     return clock
