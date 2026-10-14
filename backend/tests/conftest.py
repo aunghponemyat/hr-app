@@ -19,6 +19,7 @@ from app.main import create_app
 from app.models import Employee, Role
 from app.schemas.auth import MessageResponse
 from app.services.reference_service import seed_reference_data
+from tests.attendance_support import AttendanceClock
 from tests.authz_support import AuthzScenario, create_scenario, install_authz_probes
 from tests.database import migration_config, validate_test_database_url
 
@@ -161,3 +162,11 @@ def authz_client(auth_app: FastAPI, scenario: AuthzScenario) -> Iterator[TestCli
     install_authz_probes(auth_app)
     with TestClient(auth_app, raise_server_exceptions=False) as client:
         yield client
+
+
+@pytest.fixture
+def attendance_clock(monkeypatch: pytest.MonkeyPatch) -> AttendanceClock:
+    clock = AttendanceClock()
+    for module in ("attendance_service", "attendance_read_service", "roster_service"):
+        monkeypatch.setattr(f"app.services.{module}.utc_now", clock.now)
+    return clock

@@ -1,9 +1,10 @@
 # HR Management & Attendance
 
-The MVP follows [AGENTS.md](AGENTS.md) in phase order. Phases 1–5 are complete:
+The MVP follows [AGENTS.md](AGENTS.md) in phase order. Phases 1–6 are complete:
 application scaffolding, the MySQL schema, reference seeding, authentication, and
 first-admin bootstrap, authorization scope helpers, and employee/team/location
-administration. Attendance, leave, and reports follow in Phases 6–8. Frontend authentication begins in Phase 9;
+administration, and attendance with GPS verification and scoped dashboards.
+Leave and reports follow in Phases 7–8. Frontend authentication begins in Phase 9;
 the current frontend is an application shell.
 
 ## Requirements
@@ -94,7 +95,11 @@ target existence protection, and one permission query per request. Administratio
 cover HR/C-level setup, denial for every admin endpoint, immutable employee IDs,
 membership and manager history, password reset revocation, reference-preserving
 deletion, filtered lists, audit redaction, and concurrent employee creation and
-last-admin changes. Database tests use real
+last-admin changes. Attendance tests cover remote/onsite actions, geodesic
+boundaries, GPS failure rollback, concurrent clock actions, server/local dates,
+overnight rejection, half-day thresholds, scoped reads and pagination, date ranges,
+derived absence/weekend/future statuses, and audited manual corrections.
+Database tests use real
 MySQL and transaction/savepoint fixtures so
 service commits cannot persist fixture data. Migrations are included in strict mypy checks.
 
@@ -236,7 +241,7 @@ for history/reporting; dropdown/list services can add their required active filt
 
 Phase 4's authorization probes exist only under `/api/v1/authz/` in the test
 app. Phase 5 provides the production team roster and administration endpoints;
-attendance workflows follow in Phase 6.
+attendance workflows are available through the Phase 6 endpoints below.
 
 ## Administration API
 
@@ -293,8 +298,71 @@ while linked to a team or referenced by attendance. History is preserved.
 Successful deletes return a message. Mutations produce secret-free audit records.
 Employee and manager timestamps are presented in the configured office timezone.
 The roster's `today_status` shows stored attendance or `weekend`; missing attendance
-on a working day returns null. Full attendance and leave derivation follow in
-Phases 6–7.
+on a working day returns null. Calendar absence/weekend/future statuses are derived
+by the attendance APIs; approved leave integration follows in Phase 7.
+
+## Attendance API
+
+All routes require a bearer token and a completed password change. Backend
+authorization uses current permission grants and current team scope. Frontend
+clock confirmation, geolocation capture, and calendar UI arrive in Phase 10.
+
+| Endpoint | Request/result |
+| --- | --- |
+| `GET /api/v1/attendance/today` | Own row or null, office-local date, and `next_action`: `clock_in`, `clock_out`, or `none` |
+| `POST /api/v1/attendance/clock-in` | `{work_mode,latitude?,longitude?,accuracy_m?}`; attendance record plus confirmation message |
+| `POST /api/v1/attendance/clock-out` | Same body; the existing row determines the mode, regardless of the request's selection |
+| `GET /api/v1/attendance/calendar` | Calendar entries, summary, available years; optional internal `employee_id`, default self |
+| `GET /api/v1/attendance` | Paginated daily rows in effective self/team/any scope; optional internal `employee_id` |
+| `GET /api/v1/team/attendance` | Paginated scoped employee identities and per-member range summaries; team/any read permission |
+| `PATCH /api/v1/attendance/{id}` | Existing row correction: `status`, `clock_in`, `clock_out`; mandatory `reason`; team/any update permission |
+
+Read periods use `view=week|month|year|custom` and optional `anchor=YYYY-MM-DD`.
+Default is the current month. Custom periods use `from` and `to`; supplying both
+implies custom view. Week starts Monday. Bounds are inclusive and capped at
+`MAX_REPORT_RANGE_DAYS` (default 366). Callers without `attendance.read.any` have
+a one-calendar-year lookback. Partially available periods are clipped to that
+boundary, and wholly older periods return `422 HISTORY_LIMIT`; requested spans
+above the cap return `422 RANGE_TOO_LARGE`. Responses show effective bounds.
+Available years reflect visible attendance data, falling back to the current year
+when no data exists.
+
+The calendar includes every date. Earlier working days without attendance show
+`absent`; non-working days show `weekend`; future dates show `upcoming`. Recorded
+attendance takes precedence on a worked weekend. A current working day without
+attendance has null status so the ongoing day is not marked absent. Summaries
+count present, half-day, absent, and leave days, plus completed worked hours.
+Leave metadata remains null until Phase 7. Tables include derived dates and order
+by employee ID then date; personal dashboards should pass their own internal ID.
+Counts and pagination apply only to authorized employees, including inactive
+employees retained for history. Team summaries load attendance for the selected
+page of employees together.
+
+Remote clock actions ignore and clear coordinates. Onsite requires latitude,
+longitude, and nonnegative GPS accuracy. Accuracy above the configured limit
+returns `422 LOW_GPS_ACCURACY`; missing/invalid GPS returns `422 GPS_REQUIRED`;
+no linked location returns `422 NO_WORK_LOCATION_CONFIGURED`. The nearest current
+team-linked location determines the allowed perimeter. Geodesic distance is checked
+before rounding, and an outside fix returns `403 OUTSIDE_WORK_PERIMETER` with
+distance/radius details. Verification runs again for clock-out, while the row
+retains its clock-in location. GPS evidence is stored with the attendance record;
+warnings omit names and coordinates. Failed verification leaves attendance unchanged.
+
+Server time determines clock timestamps and the office-local attendance date.
+Client timestamps and verification flags are rejected. Simultaneous actions lock
+the employee before attendance; only one clock-in/out succeeds. Duplicates return
+409. Clock-out requires today's clock-in; previous-day open rows remain open because
+overnight shifts are excluded. Worked time below `HALF_DAY_THRESHOLD_HOURS` results
+in `half-day`; an exact-threshold interval remains `present`.
+
+Manual correction requires a nonblank reason up to 500 characters. Offset-aware
+times must stay on the attendance date, be no later than server time, and satisfy
+clock-out >= clock-in. Clear both times together when clearing clock-in on a
+completed record. Changing a time clears that action's GPS evidence; clearing
+clock-in also clears the location. Status remains explicitly controlled by the
+correction. The response uses office-local timestamps; `updated_by` and a
+before/after audit with reason are written in the same transaction. No schema
+migration is needed for Phase 6.
 
 ## Geolocation and security
 
