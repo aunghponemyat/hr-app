@@ -7,12 +7,14 @@ from app.core.config import Settings
 from app.core.errors import AppError
 from app.models import Attendance, Employee
 from app.schemas.admin import PageQuery, PageResponse, TeamMemberResponse
+from app.schemas.attendance import DateRange
 from app.services.admin_support import employee_response, page_rows
 from app.services.authorization_service import (
     AuthorizationContext,
     has_permission,
     scoped_employee_ids_query,
 )
+from app.services.leave_calendar_service import approved_leave_days, leave_display_status
 from app.utils.time import utc_now
 
 
@@ -40,11 +42,18 @@ def list_team_members(
         ).all()
     }
     fallback = None if today.weekday() in settings.working_weekday_numbers else "weekend"
+    leaves = approved_leave_days(
+        caller.session,
+        [row.id for row in rows],
+        DateRange(from_date=today, to_date=today),
+        settings,
+    )
     return PageResponse(
         items=[
             TeamMemberResponse(
                 **employee_response(row, settings).model_dump(),
-                today_status=statuses[row.id].value if row.id in statuses else fallback,
+                today_status=leave_display_status(leaves.get((row.id, today), []))
+                or (statuses[row.id].value if row.id in statuses else fallback),
             )
             for row in rows
         ],

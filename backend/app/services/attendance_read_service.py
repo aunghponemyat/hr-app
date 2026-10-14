@@ -15,6 +15,7 @@ from app.schemas.attendance import (
     CalendarQuery,
     CalendarResponse,
     DateRange,
+    LeaveInfo,
     TeamAttendanceQuery,
     TeamAttendanceResponse,
     TeamAttendanceRow,
@@ -27,6 +28,7 @@ from app.services.authorization_service import (
     resolve_target_employee,
     scoped_employee_ids_query,
 )
+from app.services.leave_calendar_service import approved_leave_days, leave_years
 from app.services.period_service import history_start, resolve_period
 from app.utils.time import utc_now
 
@@ -54,9 +56,16 @@ def entries_for(
     period: DateRange,
     today: date,
     settings: Settings,
+    leaves: dict[tuple[int, date], list[LeaveInfo]] | None = None,
 ) -> list[CalendarEntry]:
     return [
-        calendar_entry(day, rows.get((employee_id, day)), today, settings)
+        calendar_entry(
+            day,
+            rows.get((employee_id, day)),
+            today,
+            settings,
+            (leaves or {}).get((employee_id, day), []),
+        )
         for day in (
             period.from_date + timedelta(days=index)
             for index in range((period.to_date - period.from_date).days + 1)
@@ -76,7 +85,12 @@ def available_years(caller: AuthorizationContext, employee_id: int, today: date)
             query.distinct().order_by(func.year(Attendance.attendance_date).desc())
         )
     ]
-    return years or [today.year]
+    leave_data_years = leave_years(
+        caller.session,
+        employee_id,
+        None if "any" in has_permission(caller, "attendance", "read") else history_start(today),
+    )
+    return sorted(set(years) | leave_data_years, reverse=True) or [today.year]
 
 
 def calendar(
@@ -90,7 +104,8 @@ def calendar(
         query, today, settings, unrestricted="any" in has_permission(caller, "attendance", "read")
     )
     rows = attendance_rows(caller.session, [employee.id], period)
-    entries = entries_for(employee.id, rows, period, today, settings)
+    leaves = approved_leave_days(caller.session, [employee.id], period, settings)
+    entries = entries_for(employee.id, rows, period, today, settings, leaves)
     return CalendarResponse(
         employee=employee_identity(employee),
         period=period,
@@ -129,10 +144,19 @@ def table(
             )
         )
         rows = attendance_rows(caller.session, [employee.id for employee in selected], period)
+        leaves = approved_leave_days(
+            caller.session, [employee.id for employee in selected], period, settings
+        )
         for employee in selected:
             for day_index in range(first_day, days):
                 day = period.from_date + timedelta(days=day_index)
-                entry = calendar_entry(day, rows.get((employee.id, day)), today, settings)
+                entry = calendar_entry(
+                    day,
+                    rows.get((employee.id, day)),
+                    today,
+                    settings,
+                    leaves.get((employee.id, day), []),
+                )
                 items.append(
                     AttendanceTableRow(**entry.model_dump(), employee=employee_identity(employee))
                 )
@@ -164,11 +188,14 @@ def team_summary(
         query,
     )
     rows = attendance_rows(caller.session, [employee.id for employee in employees], period)
+    leaves = approved_leave_days(
+        caller.session, [employee.id for employee in employees], period, settings
+    )
     return TeamAttendanceResponse(
         items=[
             TeamAttendanceRow(
                 employee=employee_identity(employee),
-                summary=summarize(entries_for(employee.id, rows, period, today, settings)),
+                summary=summarize(entries_for(employee.id, rows, period, today, settings, leaves)),
             )
             for employee in employees
         ],
