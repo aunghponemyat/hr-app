@@ -9,6 +9,7 @@ from app.core.errors import register_error_handlers
 from app.routers.admin_employees import router as admin_employees_router
 from app.routers.admin_locations import router as admin_locations_router
 from app.routers.admin_teams import router as admin_teams_router
+from app.routers.attendance import router as attendance_router
 from app.routers.auth import router as auth_router
 from app.routers.health import router as health_router
 from app.routers.me import router as me_router
@@ -65,6 +66,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(admin_teams_router)
     application.include_router(admin_locations_router)
     application.include_router(team_router)
+    application.include_router(attendance_router)
     return application
 
 
