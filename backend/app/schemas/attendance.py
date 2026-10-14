@@ -132,6 +132,7 @@ class CalendarEntry(BaseModel):
     work_location_name: str | None
     worked_hours: float
     leave: LeaveInfo | None = None
+    leaves: list[LeaveInfo] = Field(default_factory=list)
 
 
 class AttendanceSummary(BaseModel):

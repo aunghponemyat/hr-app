@@ -10,8 +10,10 @@ from app.schemas.attendance import (
     DisplayStatus,
     EmployeeIdentity,
     GpsEvidence,
+    LeaveInfo,
 )
 from app.schemas.auth import TeamSummary
+from app.services.leave_calendar_service import leave_display_status
 
 
 def worked_hours(row: Attendance | None) -> float:
@@ -66,10 +68,18 @@ def attendance_response(row: Attendance, settings: Settings) -> AttendanceRespon
 
 
 def calendar_entry(
-    day: date, row: Attendance | None, today: date, settings: Settings
+    day: date,
+    row: Attendance | None,
+    today: date,
+    settings: Settings,
+    leaves: list[LeaveInfo] | None = None,
 ) -> CalendarEntry:
-    if day > today:
-        status: DisplayStatus | None = "upcoming"
+    approved = leaves or []
+    status: DisplayStatus | None = leave_display_status(approved)
+    if status is not None:
+        pass
+    elif day > today:
+        status = "upcoming"
     elif row is not None:
         status = row.status.value
     elif day.weekday() not in settings.working_weekday_numbers:
@@ -88,6 +98,8 @@ def calendar_entry(
         clock_out=row.clock_out.astimezone(zone) if row and row.clock_out else None,
         work_location_name=row.work_location.name if row and row.work_location else None,
         worked_hours=round(worked_hours(row), 4),
+        leave=approved[0] if approved else None,
+        leaves=approved,
     )
 
 
