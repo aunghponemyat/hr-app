@@ -22,6 +22,7 @@ from app.services.authorization_service import (
 __all__ = [
     "AuthorizationContext",
     "CurrentCaller",
+    "PasswordChangedCaller",
     "Scope",
     "authorize",
     "get_authorization_context",
@@ -51,6 +52,14 @@ def get_authorization_context(
 
 
 CurrentCaller = Annotated[AuthorizationContext, Depends(get_authorization_context)]
+
+
+def password_changed_caller(caller: CurrentCaller) -> AuthorizationContext:
+    require_password_changed(caller.employee)
+    return caller
+
+
+PasswordChangedCaller = Annotated[AuthorizationContext, Depends(password_changed_caller)]
 
 
 def require_permission(
