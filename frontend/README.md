@@ -14,8 +14,8 @@ npm run dev
 backend and frontend checks.
 
 Phase 9 provides Axios authentication, a session context, TanStack Query,
-permission guards/navigation, login, and password change. Business pages are
-Phase 10 placeholders. Tokens stay in memory; refresh cookies are browser managed.
+permission guards/navigation, login, and password change. Phase 10 connects Dashboard, Leave, Profile/export, Team/approvals, and all admin
+pages to the backend. Tokens stay in memory; refresh cookies are browser managed.
 Use the same hostname for API/frontend to preserve SameSite cookie behavior.
 
 `src/api/client.ts` owns refresh/retry and credential operations;
