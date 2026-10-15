@@ -7,7 +7,7 @@ import {
   within,
 } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AppRoutes } from '../routes'
 import { AuthProvider } from './AuthProvider'
 import { AuthSession } from './session'
@@ -21,6 +21,8 @@ import {
   deferred,
 } from '../test/transport'
 import type { Handler, Reply } from '../test/transport'
+
+vi.mock('../pages/Dashboard', () => ({ Dashboard: () => <h1>Dashboard</h1> }))
 
 let restore: () => void
 afterEach(() => restore?.())
@@ -71,6 +73,17 @@ function fillPassword(
 }
 
 describe('browser authentication flows', () => {
+  it('clears the previous account destination on explicit sign-out', async () => {
+    mount(
+      (config) => ({ data: config.url === '/me' ? profile() : pair() }),
+      '/profile',
+    )
+    await screen.findByRole('heading', { name: 'Profile' })
+    fireEvent.click(screen.getByRole('button', { name: 'Sign out' }))
+    await screen.findByRole('button', { name: 'Sign in' })
+    fillLogin()
+    await screen.findByRole('heading', { name: 'Dashboard' })
+  })
   it('redirects anonymous visits to login and restores the requested destination after login', async () => {
     const session = mount(
       (config) =>

@@ -98,6 +98,14 @@ export function createApiClient(events: SessionEvents) {
     },
     async (error: unknown) => {
       if (!axios.isAxiosError(error) || !error.config) throw error
+      // CSV downloads request blobs; normalize JSON failures before auth handling.
+      if (error.response?.data instanceof Blob) {
+        try {
+          error.response.data = JSON.parse(await error.response.data.text())
+        } catch {
+          /* Keep a safe generic error for non-JSON failures. */
+        }
+      }
       const config = error.config
       if (config.sessionGeneration !== generation) {
         throw new CanceledError('Session changed.')
