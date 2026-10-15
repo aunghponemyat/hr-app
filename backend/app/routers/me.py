@@ -2,6 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
+from app.deps.auth import AppSettings
 from app.deps.authz import AuthorizationContext, require_permission
 from app.schemas.admin import ProfileUpdate
 from app.schemas.auth import ProfileResponse
@@ -23,13 +24,15 @@ def me(
             )
         ),
     ],
+    settings: AppSettings,
 ) -> ProfileResponse:
-    return get_profile(caller)
+    return get_profile(caller, settings)
 
 
 @router.patch("/me", response_model=ProfileResponse)
 def patch_me(
     caller: Annotated[AuthorizationContext, Depends(require_permission("profile", "update"))],
     data: ProfileUpdate,
+    settings: AppSettings,
 ) -> ProfileResponse:
-    return update_profile(caller, data)
+    return update_profile(caller, data, settings)

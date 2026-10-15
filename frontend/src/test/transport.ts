@@ -88,5 +88,10 @@ export function profile(
     team: null,
     permissions,
     must_change_password: forced,
+    app: {
+      timezone: 'Asia/Bangkok',
+      today: '2026-10-15',
+      max_report_range_days: 366,
+    },
   }
 }
