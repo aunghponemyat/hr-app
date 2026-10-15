@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, FastAPI, Query, Request
@@ -58,7 +58,9 @@ def create_employee(
     return employee
 
 
-def create_scenario(session: Session, password: str) -> AuthzScenario:
+def create_scenario(
+    session: Session, password: str, *, now: datetime | None = None
+) -> AuthzScenario:
     teams = {key: Team(name=f"Authz team {key}") for key in ("a", "b")}
     session.add_all(teams.values())
     session.flush()
@@ -81,7 +83,7 @@ def create_scenario(session: Session, password: str) -> AuthzScenario:
         key: TeamManager(
             team_id=teams[key].id,
             employee_id=employees[f"manager_{key}"].id,
-            assigned_at=utc_now() - timedelta(days=1),
+            assigned_at=(now or utc_now()) - timedelta(days=1),
         )
         for key in teams
     }
