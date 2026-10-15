@@ -13,5 +13,16 @@ npm run dev
 `npm run build` run the frontend quality gates. The root `make check` runs both
 backend and frontend checks.
 
-The current application shell is the Phase 1 deliverable. Login, route guards,
-and API integration begin in Phase 9; product pages follow in Phase 10.
+Phase 9 provides Axios authentication, a session context, TanStack Query,
+permission guards/navigation, login, and password change. Business pages are
+Phase 10 placeholders. Tokens stay in memory; refresh cookies are browser managed.
+Use the same hostname for API/frontend to preserve SameSite cookie behavior.
+
+`src/api/client.ts` owns refresh/retry and credential operations;
+`src/auth/session.ts` owns session/profile state and cache cleanup. Use `useAuth()`
+for the current session and its `http.api` instance, and `useAuthState()` for the
+reactive profile/status. AuthProvider supplies the QueryClient. Permissions come
+from `/me`; frontend guards do not replace backend authorization.
+
+Production hosts must fall back to `index.html` for application routes. See the
+root guide for session failure behavior and manual acceptance steps.

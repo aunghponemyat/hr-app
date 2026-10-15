@@ -1,11 +1,12 @@
 # HR Management & Attendance
 
-The MVP follows [AGENTS.md](AGENTS.md) in phase order. Phases 1–8 are complete:
+The MVP follows [AGENTS.md](AGENTS.md) in phase order. Phases 1–9 are complete:
 application scaffolding, the MySQL schema, reference seeding, authentication, and
 first-admin bootstrap, authorization scope helpers, and employee/team/location
 administration, attendance with GPS verification and scoped dashboards, and leave
-management with attendance integration, and streamed CSV reports. Frontend authentication begins in Phase 9;
-the current frontend is an application shell.
+management with attendance integration, streamed CSV reports, and the React
+authentication foundation with permission-based navigation. Product pages follow
+in Phase 10.
 
 ## Requirements
 
@@ -40,7 +41,7 @@ make dev-frontend
 
 Frontend: <http://localhost:5173>. API liveness: <http://localhost:8000/healthz>.
 OpenAPI: <http://localhost:8000/docs>. The health check returns `{"status":"ok"}`
-without requiring a running database. Business routes will use `/api/v1`.
+without requiring a running database. Business routes use `/api/v1`.
 
 Poetry manages backend dependencies and `backend/poetry.lock` records resolved
 versions. Alternatively, from `backend/`, `pip install -e '.[dev]'` installs the
@@ -177,7 +178,7 @@ employee records intact.
 ## Authentication API
 
 The backend authentication flow is usable through HTTP clients and the development
-OpenAPI UI; the React login/change-password pages are scheduled for Phase 9.
+OpenAPI UI or the React login/change-password pages.
 
 | Endpoint | Request | Result |
 | --- | --- | --- |
@@ -505,3 +506,60 @@ checks pass, commit the phase and merge into `develop`, then merge `develop` int
 
 The existing `backend/scripts/deploy.sh` predates this app and targets another
 project. It is not part of the HR application's setup or deployment workflow.
+
+
+## Frontend authentication (Phase 9)
+
+Visit <http://localhost:5173>, enter the Employee ID and default password provided
+by HR, and choose a new password when prompted. Successful completion opens the
+dashboard route. Passwords must be 8–1024 characters with letters and digits and
+differ from the current password; confirmation is required in the UI. Login errors
+remain generic, with separate messages for temporary lockout and rate limiting.
+
+The Axios client uses `VITE_API_BASE_URL` and credentialed requests. OAuth2 login
+is form encoded; other inputs use JSON. Access tokens stay in memory. Reloading
+restores the session through the browser's httpOnly refresh cookie, then loads
+`GET /me`. One shared refresh serves simultaneous 401 responses; each failed
+request retries at most once. Responses from older sessions are discarded.
+Login and wrong-current-password failures do not initiate refresh loops.
+
+TanStack Query holds server state and clears private cache entries when sessions
+change or end. Refresh rotation completes before password changes and logout;
+new requests are blocked during those operations. Logout returns to login after server
+revocation succeeds; a connection/server failure leaves a retryable sign-out
+error. An offline session restore offers Retry instead of a misleading login
+screen. If password change succeeds but profile reload fails, reconnect restores
+the changed account without requiring another password change.
+
+Navigation and direct-route guards read permission codes from `/me`, with no
+role-name checks. Employees/senior staff see Dashboard, Leave, and Profile;
+manager grants add Team; any-scope grants add the corresponding administrative
+pages. Forced password change takes precedence over every protected route.
+Requested internal destinations are restored after login/change; external or
+unsafe destinations are rejected. Backend authorization remains authoritative.
+The responsive layout includes keyboard focus indicators, labels, linked field
+errors, a skip link, and main-content focus after navigation.
+
+Phase 9 validation passed `make check`: 658 backend tests, 71 frontend tests, all
+lint/format/type checks, and the production build. A headless Chrome smoke check
+with mocked auth responses verified desktop/mobile rendering, forced change,
+reload restoration, permission navigation, logout, empty browser storage, and no
+JavaScript exceptions. Dependency auditing reported zero known vulnerabilities
+after selecting the patched router release.
+
+The Dashboard, Leave, Profile, Team, and administrative routes currently contain
+named Phase 10 placeholders. Profile links to the working password-change page.
+Clocking, calendars, leave forms, profile editing/export, approvals, and admin
+controls are Phase 10 work.
+
+Run `make check-frontend` for lint, formatting, strict types, Vitest/RTL, and a
+production build. Tests cover login → forced change → dashboard, all five roles'
+menus, direct-route denial, Unicode password validation, refresh concurrency,
+session/cache cleanup, logout failures, and restore recovery. API responses are
+mocked at the Axios transport boundary; the backend suite independently verifies
+the real MySQL-backed contracts. For a manual check, bootstrap an admin, run both
+servers, complete the forced change, reload, visit an admin URL as an employee,
+and sign out. Use the same hostname for frontend/backend (e.g. `localhost` for
+both) so SameSite refresh cookies work; production requires HTTPS. Serve the Vite
+`dist/` directory with application-route fallback to `index.html` and proxy the
+API separately. Never put secrets into `VITE_` variables or browser storage.
