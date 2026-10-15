@@ -47,6 +47,20 @@ Poetry manages backend dependencies and `backend/poetry.lock` records resolved
 versions. Alternatively, from `backend/`, `pip install -e '.[dev]'` installs the
 same declared dependencies, including development tools.
 
+If another MySQL server already uses port 3306, the application can accidentally
+connect to it and report `1045 Access denied`. Check the port mapping with
+`docker compose ps mysql`. Configure an unused host port without stopping the
+other server:
+
+1. Add `MYSQL_HOST_PORT=3308` to `.env` in the **project root**; Docker Compose
+   reads this file.
+2. Change the port in `backend/.env`'s `DATABASE_URL` to `3308`, keeping its
+   database name and credentials unchanged. The backend reads this separate file.
+3. Run `make db-up`, then `make migrate`, and restart the backend if it is running.
+
+The container still uses internal port 3306 and retains the existing `mysql_data`
+volume. The default host port remains 3306 when `MYSQL_HOST_PORT` is unset.
+
 ## Configuration
 
 The commented [environment example](.env.example) contains all MVP settings.
@@ -115,6 +129,7 @@ service commits cannot persist fixture data. Migrations are included in strict m
 It runs on loopback port 3307, uses `hr_app_test`, and stores data in temporary
 container memory. The development database uses loopback port 3306 and a named
 volume. `docker compose stop` stops services while preserving development data.
+
 The migration round-trip test rebuilds the isolated test schema through Alembic.
 `TEST_DATABASE_URL` must name a dedicated database ending in `_test`, with a name
 different from the development database. Never point it at a database containing
