@@ -14,6 +14,7 @@ from app.routers.auth import router as auth_router
 from app.routers.health import router as health_router
 from app.routers.leave import router as leave_router
 from app.routers.me import router as me_router
+from app.routers.reports import router as reports_router
 from app.routers.team import router as team_router
 from app.schemas.common import ErrorResponse
 from app.services.login_limiter import LoginRateLimiter
@@ -69,6 +70,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(team_router)
     application.include_router(attendance_router)
     application.include_router(leave_router)
+    application.include_router(reports_router)
     return application
 
 

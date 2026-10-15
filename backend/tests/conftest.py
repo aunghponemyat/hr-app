@@ -153,8 +153,18 @@ def auth_client(auth_app: FastAPI) -> Iterator[TestClient]:
 
 
 @pytest.fixture
-def scenario(seeded_session: Session, initial_password: SecretStr) -> AuthzScenario:
-    return create_scenario(seeded_session, initial_password.get_secret_value())
+def scenario(
+    seeded_session: Session, initial_password: SecretStr, request: pytest.FixtureRequest
+) -> AuthzScenario:
+    # History must precede actions even when a workflow uses a fixed server clock.
+    clock: AttendanceClock | None = (
+        request.getfixturevalue("attendance_clock")
+        if "attendance_clock" in request.fixturenames
+        else None
+    )
+    return create_scenario(
+        seeded_session, initial_password.get_secret_value(), now=clock.now() if clock else None
+    )
 
 
 @pytest.fixture
@@ -173,6 +183,7 @@ def attendance_clock(monkeypatch: pytest.MonkeyPatch) -> AttendanceClock:
         "roster_service",
         "leave_service",
         "leave_options_service",
+        "report_service",
     ):
         monkeypatch.setattr(f"app.services.{module}.utc_now", clock.now)
     return clock
