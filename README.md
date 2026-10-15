@@ -1,10 +1,10 @@
 # HR Management & Attendance
 
-The MVP follows [AGENTS.md](AGENTS.md) in phase order. Phases 1–7 are complete:
+The MVP follows [AGENTS.md](AGENTS.md) in phase order. Phases 1–8 are complete:
 application scaffolding, the MySQL schema, reference seeding, authentication, and
 first-admin bootstrap, authorization scope helpers, and employee/team/location
 administration, attendance with GPS verification and scoped dashboards, and leave
-management with attendance integration. Reports follow in Phase 8. Frontend authentication begins in Phase 9;
+management with attendance integration, and streamed CSV reports. Frontend authentication begins in Phase 9;
 the current frontend is an application shell.
 
 ## Requirements
@@ -103,6 +103,10 @@ cover active options and eligible managers, duration/reason/backdate validation,
 working-day calculations, overlaps and opposite halves, scoped reads/decisions,
 self-decision denial, cancellation, live manager eligibility, audit records,
 calendar/table/roster/summary overlays, and concurrent submissions and state changes.
+Report tests cover self/admin export permissions, range caps and history limits,
+current team/employee filters, inactive employees, exact column order, BOM/Unicode,
+CSV quoting and injection escaping, GPS/decision fields, lazy batched generation,
+database dependency lifetime, and CSV response documentation.
 Database tests use real
 MySQL and transaction/savepoint fixtures so
 service commits cannot persist fixture data. Migrations are included in strict mypy checks.
@@ -372,7 +376,7 @@ completed record. Changing a time clears that action's GPS evidence; clearing
 clock-in also clears the location. Status remains explicitly controlled by the
 correction. The response uses office-local timestamps; `updated_by` and a
 before/after audit with reason are written in the same transaction. No schema
-migration is needed for Phases 6–7.
+migration is needed for Phases 6–8.
 
 ## Leave API
 
@@ -429,6 +433,62 @@ decisions/cancellations serialize on that requester. Deadlocks/lock timeouts rol
 back and return `409 LEAVE_CONFLICT`. Lists filter scope before counts and
 pagination, order newest first, and retain request history. Self-only readers get
 403 for missing/foreign request IDs; team/any readers may get 404 for missing IDs.
+
+## CSV reports
+
+Exports require authentication and a completed password change. The response is
+`text/csv; charset=utf-8` with a UTF-8 BOM for Excel, CRLF records, and a download
+filename. All private responses use `Cache-Control: no-store`. Backend checks use
+`report.export.self` / `report.export.any`; other read/admin grants are not extra
+requirements. Frontend download panels arrive in Phase 10.
+
+| Endpoint | Scope and filters |
+| --- | --- |
+| `GET /api/v1/attendance/export?from=&to=` | Always the caller's attendance; both dates required, including for HR/C-level |
+| `GET /api/v1/admin/reports/attendance.csv` | Any-scope export permission; optional date pair, `team_id`, `employee_id` |
+| `GET /api/v1/admin/reports/leave.csv` | Same any-scope permission and optional filters |
+
+Filter IDs are internal numeric IDs. Admin dates default to the current
+office-local month when both are omitted; supplying just one date is invalid.
+Bounds are inclusive and limited to `MAX_REPORT_RANGE_DAYS` (default 366).
+Self-scope exports enforce the same calendar-year lookback and partial-range
+clipping as the dashboard. Any-scope holders can export older history within the
+same range cap. Filenames show effective bounds, for example
+`attendance_EMP0001_2026-01-01_2026-03-31.csv`; admin files use `attendance_all` or
+`leave_all`. Filename components are sanitized for safe download headers.
+
+Attendance files contain one row per selected employee/date, including derived
+absences, non-working/future days, and approved leave. They use the same display
+rules as calendars and order by internal employee ID then date. Team filters use
+current membership; inactive employees remain included. Leave files include all
+statuses with request intervals overlapping the filter range, preserve original
+dates/day counts, and order by request ID. Existing but incompatible filters
+produce a header-only file; missing target IDs return a JSON 404 after authorization.
+Self export rejects target/team filters and never expands to another employee.
+
+Column order follows [AGENTS.md Section 10.7](AGENTS.md#107-csv-export). Names prefer
+display name with first/last fallback; team names are current. Times include the
+office offset, missing fields are empty, GPS flags are lowercase true/false, and
+worked hours have two decimal places. Half-day duration includes morning/afternoon.
+String cells starting with `=`, `+`, `-`, `@`, tab, or carriage return receive a
+leading apostrophe; CSV quoting preserves commas, quotes, and embedded newlines.
+No passwords, tokens, or extra profile fields are exported.
+
+The server validates permissions/ranges/filters before streaming. It reads
+attendance in batches of 25 employees and leave in batches of 100 requests, keeps
+the request database session open through generation, and never assembles a whole
+report in memory. Typed row models specify the columns and OpenAPI documents the
+CSV body as a string. Empty reports retain the BOM and header.
+
+Example download using an access token from login:
+
+```bash
+curl --fail --get 'http://localhost:8000/api/v1/attendance/export' \
+  --header 'Authorization: Bearer <access-token>' \
+  --data-urlencode 'from=2026-01-01' \
+  --data-urlencode 'to=2026-03-31' \
+  --output attendance.csv
+```
 
 ## Geolocation and security
 
