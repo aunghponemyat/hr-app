@@ -116,6 +116,26 @@ export class AuthSession {
     }
   }
 
+  updateProfile = (profile: Profile) => {
+    if (profile.id !== this.state.profile?.id) return
+    this.queryClient.setQueryData(['me'], profile)
+    this.set({ profile })
+  }
+
+  clearSession = () => {
+    this.http.clear()
+    this.end()
+  }
+
+  reloadProfile = async () => {
+    const expected = this.revision
+    try {
+      await this.loadProfile(expected)
+    } catch {
+      this.clearSession()
+    }
+  }
+
   changePassword = async (input: ChangePasswordInput) => {
     if (this.state.busy) return
     this.set({ busy: true, error: null })

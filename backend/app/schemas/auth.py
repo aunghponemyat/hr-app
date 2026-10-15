@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
@@ -60,6 +61,12 @@ class TeamSummary(BaseModel):
     name: str
 
 
+class AppPresentation(BaseModel):
+    timezone: str
+    today: date
+    max_report_range_days: int
+
+
 class ProfileResponse(BaseModel):
     id: int
     employee_id: str
@@ -72,3 +79,4 @@ class ProfileResponse(BaseModel):
     team: TeamSummary | None
     permissions: list[str]
     must_change_password: bool
+    app: AppPresentation

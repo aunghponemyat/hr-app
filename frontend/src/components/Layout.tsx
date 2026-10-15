@@ -1,5 +1,11 @@
 import { useEffect, useRef } from 'react'
-import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
+import {
+  Link,
+  NavLink,
+  Outlet,
+  useLocation,
+  useNavigate,
+} from 'react-router-dom'
 import { useAuth } from '../auth/context'
 import { useAuthState } from '../auth/useAuthState'
 import { navigation } from './navigation'
@@ -8,6 +14,7 @@ export function Layout() {
   const session = useAuth()
   const { profile, busy, error } = useAuthState()
   const { pathname } = useLocation()
+  const navigate = useNavigate()
   const main = useRef<HTMLElement>(null)
   useEffect(() => {
     main.current?.focus()
@@ -31,7 +38,10 @@ export function Layout() {
             className="secondary"
             disabled={busy}
             onClick={() => {
-              void session.logout().catch(() => undefined)
+              void session
+                .logout()
+                .then(() => navigate('/login', { replace: true, state: null }))
+                .catch(() => undefined)
             }}
           >
             {busy ? 'Please wait…' : 'Sign out'}

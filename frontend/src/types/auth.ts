@@ -17,6 +17,7 @@ export interface Profile {
   team: { id: number; name: string } | null
   permissions: string[]
   must_change_password: boolean
+  app: { timezone: string; today: string; max_report_range_days: number }
 }
 
 export interface LoginInput {

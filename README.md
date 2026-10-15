@@ -1,12 +1,12 @@
 # HR Management & Attendance
 
-The MVP follows [AGENTS.md](AGENTS.md) in phase order. Phases 1–9 are complete:
+The MVP follows [AGENTS.md](AGENTS.md) in phase order. Phases 1–10 are complete:
 application scaffolding, the MySQL schema, reference seeding, authentication, and
 first-admin bootstrap, authorization scope helpers, and employee/team/location
 administration, attendance with GPS verification and scoped dashboards, and leave
 management with attendance integration, streamed CSV reports, and the React
-authentication foundation with permission-based navigation. Product pages follow
-in Phase 10.
+authentication foundation with permission-based navigation, and employee, manager,
+and administrative feature pages.
 
 ## Requirements
 
@@ -255,7 +255,7 @@ attendance workflows are available through the Phase 6 endpoints below.
 ## Administration API
 
 Sign in as HR or C-level and complete the required password change. Use a bearer
-token in the OpenAPI UI or an HTTP client; frontend admin pages arrive in Phase 10.
+token in the OpenAPI UI or an HTTP client; administration is also available in the frontend.
 All administrative endpoints require the corresponding `any` permission in the
 backend. Numeric employee references use the internal `id`, while the generated
 business `employee_id` (such as `EMP0001`) is immutable and used for login.
@@ -314,7 +314,7 @@ by the attendance APIs, with approved leave overlaid by Phase 7.
 
 All routes require a bearer token and a completed password change. Backend
 authorization uses current permission grants and current team scope. Frontend
-clock confirmation, geolocation capture, and calendar UI arrive in Phase 10.
+clock confirmation, geolocation capture, and calendar views are connected to these APIs.
 
 | Endpoint | Request/result |
 | --- | --- |
@@ -384,7 +384,7 @@ migration is needed for Phases 6–8.
 All endpoints require authentication and a completed password change. Options and
 creation use `leave.create.self`; reads use current self/team/any leave scope;
 decisions use team/any leave-decision scope. Frontend forms and approval dialogs
-arrive in Phase 10.
+use these contracts.
 
 | Endpoint | Request/result |
 | --- | --- |
@@ -441,7 +441,7 @@ Exports require authentication and a completed password change. The response is
 `text/csv; charset=utf-8` with a UTF-8 BOM for Excel, CRLF records, and a download
 filename. All private responses use `Cache-Control: no-store`. Backend checks use
 `report.export.self` / `report.export.any`; other read/admin grants are not extra
-requirements. Frontend download panels arrive in Phase 10.
+requirements. Frontend download panels are available on Profile and Reports.
 
 | Endpoint | Scope and filters |
 | --- | --- |
@@ -547,10 +547,8 @@ reload restoration, permission navigation, logout, empty browser storage, and no
 JavaScript exceptions. Dependency auditing reported zero known vulnerabilities
 after selecting the patched router release.
 
-The Dashboard, Leave, Profile, Team, and administrative routes currently contain
-named Phase 10 placeholders. Profile links to the working password-change page.
-Clocking, calendars, leave forms, profile editing/export, approvals, and admin
-controls are Phase 10 work.
+The Dashboard, Leave, Profile, Team, and administrative routes are connected to
+the API. Their feature behavior is described below.
 
 Run `make check-frontend` for lint, formatting, strict types, Vitest/RTL, and a
 production build. Tests cover login → forced change → dashboard, all five roles'
@@ -563,3 +561,71 @@ and sign out. Use the same hostname for frontend/backend (e.g. `localhost` for
 both) so SameSite refresh cookies work; production requires HTTPS. Serve the Vite
 `dist/` directory with application-route fallback to `index.html` and proxy the
 API separately. Never put secrets into `VITE_` variables or browser storage.
+
+
+## Frontend features (Phase 10)
+
+The dashboard shows the server's next clock action, onsite/remote mode, completed
+clock times, and a server-message banner retained in memory for that session/day.
+Every action opens a confirmation dialog before location or network access.
+Onsite confirmation obtains a fresh high-accuracy GPS fix; denied permission,
+unsupported/insecure browsers, timeout, and unavailable location block submission
+with retry instructions. Remote actions request no location. Clock-out uses the
+stored mode. Duplicate/conflict responses refresh today's state.
+
+Attendance uses the current employee's explicit internal ID. Table and calendar
+views share server-derived leave/absence/weekend statuses and summaries. Week,
+month (default), year, and custom periods respect the configured inclusive range
+limit and employee lookback. The personal year selector uses years returned by the
+API; other period filters offer anchor dates and custom bounds. Times use the IANA
+office timezone returned in `/me.app`, which also supplies server-local today and
+the report range cap. Clock status refreshes every minute and on window focus.
+
+Leave offers active types/reasons and eligible managers by name. Other requires
+text; half-day requires morning/afternoon; full-day counts use whole days. The date
+picker disables nonworking weekdays and dates before the configured backdate
+limit. Its end-date preview skips those weekdays; the API confirms the final date.
+Personal requests show decision notes and owner cancellation actions. Team leave
+views default to pending, offer all status filters, and require a confirmation/note
+for decisions. Self-approval controls are hidden and the API enforces final scope.
+
+Profile edits only display name; employee ID, name, role, team, position, and
+department are read only. Password change uses the existing authentication flow.
+Profile downloads only the caller's attendance; Reports exports company attendance
+and leave with employee/team/date filters. Downloads retain server BOM and filename,
+create short-lived object URLs, and handle JSON errors from CSV endpoints through
+the same authentication/error flow.
+
+Team shows a paginated scoped roster, today's status, period summaries, and member
+attendance drilldown. All attendance offers company-wide pagination, an employee
+filter, and the same drilldown. Managers/HR can correct existing attendance with a
+mandatory reason, optional stored status, and ISO timestamps including an offset.
+Clock-time changes clear the corresponding GPS evidence on the server.
+
+Employees supports search, role/team/active filters, creation/editing, activation,
+and password reset. Creation generates the immutable ID on the server. Passwords
+may be supplied or generated; creation/reset shows a one-time handover dialog with
+a copy action. Credential requests bypass Query mutation caches. Closing the
+handover clears the displayed password; self reset ends the local session after
+handover. Role permission details are read only. Self role edits reload `/me`.
+Explicit sign-out clears the previous account's return destination.
+
+Teams supports creation/editing/deletion, member moves/removals, active manager
+assignments, and work-location links. Eligible manager choices use permission
+codes. Work locations supports CRUD with coordinate precision and 50–100 m radius
+validation. Reference selectors load every authorized page. List pages paginate,
+and the API preserves membership history and rejects deletion of referenced data.
+All routes/actions use permission codes; backend checks remain authoritative.
+
+Phase 10 validation passed 659 backend tests and 110 frontend tests, all quality
+gates, and the production build. Desktop/mobile browser acceptance used the real
+API and a disposable MySQL database, including inside/outside GPS, role/scope
+flows, password reset, and six CSV downloads with BOM verification. See the
+[acceptance record](docs/phase-10-acceptance.md) for coverage and test conditions.
+
+Native modal dialogs contain focus, restore focus on close, handle Escape, and
+block dismissal while saving. Tables scroll within their containers on mobile;
+admin forms use drawers, and feature routes are split into separate build chunks.
+`make check` verifies both stacks. Vitest/RTL covers confirmation and GPS errors,
+periods/timezones, leave conditions and overlap, decisions/cancellation, profile
+immutability, administration, password handover/cache exclusion, and CSV filters.
