@@ -66,35 +66,39 @@ export function PeriodFilter({
           </>
         ) : (
           <>
-            <button
-              className="secondary"
-              aria-label="Previous period"
-              disabled={
-                !!rangeError(previous.from, previous.to, maxDays, earliest)
-              }
-              onClick={() => onChange(shiftPeriod(value, -1))}
-            >
-              ←
-            </button>
-            <div className="field">
-              <label htmlFor={`${id}-anchor`}>Anchor date</label>
-              <input
-                type="date"
-                id={`${id}-anchor`}
-                value={value.anchor}
-                onChange={(event) => {
-                  if (event.target.value)
-                    onChange({ ...value, anchor: event.target.value })
-                }}
-              />
+            <div className="period-navigation">
+              <button
+                className="secondary icon-button"
+                type="button"
+                aria-label="Previous period"
+                disabled={
+                  !!rangeError(previous.from, previous.to, maxDays, earliest)
+                }
+                onClick={() => onChange(shiftPeriod(value, -1))}
+              >
+                ←
+              </button>
+              <div className="field">
+                <label htmlFor={`${id}-anchor`}>Anchor date</label>
+                <input
+                  type="date"
+                  id={`${id}-anchor`}
+                  value={value.anchor}
+                  onChange={(event) => {
+                    if (event.target.value)
+                      onChange({ ...value, anchor: event.target.value })
+                  }}
+                />
+              </div>
+              <button
+                className="secondary icon-button"
+                type="button"
+                aria-label="Next period"
+                onClick={() => onChange(shiftPeriod(value, 1))}
+              >
+                →
+              </button>
             </div>
-            <button
-              className="secondary"
-              aria-label="Next period"
-              onClick={() => onChange(shiftPeriod(value, 1))}
-            >
-              →
-            </button>
             {years.length > 0 && (
               <div className="field">
                 <label htmlFor={`${id}-year`}>Year with records</label>

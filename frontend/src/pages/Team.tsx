@@ -67,6 +67,7 @@ export function Team() {
       <h1>Team</h1>
       <div className="actions" role="group" aria-label="Team views">
         <button
+          className={tab === 'members' ? '' : 'secondary'}
           aria-pressed={tab === 'members'}
           onClick={() => setTab('members')}
         >
@@ -74,7 +75,7 @@ export function Team() {
         </button>
         {can('leave.read.team', 'leave.read.any') && (
           <button
-            className="secondary"
+            className={tab === 'leave' ? '' : 'secondary'}
             aria-pressed={tab === 'leave'}
             onClick={() => setTab('leave')}
           >

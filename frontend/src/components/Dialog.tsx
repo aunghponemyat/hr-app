@@ -41,10 +41,10 @@ export function Dialog({
       }}
     >
       <div className="modal-content">
-        <div className="section-heading">
+        <div className="modal-header">
           <h2 id={heading}>{title}</h2>
           <button
-            className="secondary"
+            className="secondary icon-button"
             type="button"
             aria-label="Close dialog"
             disabled={busy}
@@ -77,7 +77,7 @@ export function ConfirmDialog({
   return (
     <Dialog title={title} onClose={onClose} busy={busy}>
       <div>{children}</div>
-      <div className="actions">
+      <div className="actions dialog-actions">
         <button
           type="button"
           className="secondary"

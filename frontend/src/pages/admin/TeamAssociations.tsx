@@ -246,20 +246,22 @@ function AssociationList({
         message={add.error ? errorMessage(add.error) : null}
         error
       />
-      <button
-        disabled={
-          !/^[1-9]\d*$/.test(choice) || add.isPending || unlink.isPending
-        }
-        onClick={() => add.mutate()}
-      >
-        {add.isPending
-          ? 'Saving…'
-          : kind === 'locations'
-            ? 'Link location'
-            : kind === 'managers'
-              ? 'Assign manager'
-              : 'Add member'}
-      </button>
+      <div className="actions">
+        <button
+          disabled={
+            !/^[1-9]\d*$/.test(choice) || add.isPending || unlink.isPending
+          }
+          onClick={() => add.mutate()}
+        >
+          {add.isPending
+            ? 'Saving…'
+            : kind === 'locations'
+              ? 'Link location'
+              : kind === 'managers'
+                ? 'Assign manager'
+                : 'Add member'}
+        </button>
+      </div>
       {remove && (
         <ConfirmDialog
           title={`Remove ${remove.name}?`}

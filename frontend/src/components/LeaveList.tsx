@@ -71,8 +71,8 @@ export function LeaveList({
     <section className="card">
       <div className="section-heading">
         <h2>{team ? 'Leave requests in scope' : 'My leave requests'}</h2>
-        <label>
-          Status{' '}
+        <label className="field compact-filter">
+          Status
           <select
             value={status}
             onChange={(event) => {
@@ -215,7 +215,7 @@ export function LeaveList({
             message={mutate.error ? errorMessage(mutate.error) : null}
             error
           />
-          <div className="actions">
+          <div className="actions dialog-actions">
             <button
               className="secondary"
               disabled={mutate.isPending}

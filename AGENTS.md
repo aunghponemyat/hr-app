@@ -849,6 +849,8 @@ Complete each phase fully (code + tests) before starting the next.
 
 46. **Local MySQL port conflicts:** Docker Compose accepts `MYSQL_HOST_PORT` (default 3306) for the development database host binding. A project-root `.env` supplies Compose settings; the backend separately reads `backend/.env`. When another local MySQL owns 3306, use an available host port and update the backend database URL to match, preserving the container internal port and named volume. Do not stop unrelated database services or reset data to resolve the conflict.
 
+47. **Responsive UI consistency:** shared form controls and action buttons use a 44-pixel minimum control height, with intrinsic button widths and grouped period navigation. Wide data tables scroll inside their own region; their styles do not apply to the leave date picker. Tablet navigation uses a horizontal scrolling row, phone pagination keeps both controls together, and modal titles reserve space for the close button. Open modal dialogs lock background scrolling while retaining their own vertical scrolling and existing focus behavior. Presentation changes preserve API contracts and business rules.
+
 ---
 
 ## 20. Definition of Done (MVP)
