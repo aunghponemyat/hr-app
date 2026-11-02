@@ -17,7 +17,7 @@ class WorkLocation(IdMixin, Base):
     __table_args__ = (
         CheckConstraint("latitude BETWEEN -90 AND 90", name="latitude_range"),
         CheckConstraint("longitude BETWEEN -180 AND 180", name="longitude_range"),
-        CheckConstraint("allowed_radius_m BETWEEN 50 AND 100", name="radius_range"),
+        CheckConstraint("allowed_radius_m BETWEEN 50 AND 300", name="radius_range"),
         TABLE_OPTIONS,
     )
 

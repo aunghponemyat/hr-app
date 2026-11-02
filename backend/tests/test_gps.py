@@ -80,7 +80,7 @@ def test_nearest_location_radius_is_authoritative_and_ties_are_deterministic(
         id=1, name="Near", latitude=Decimal("0"), longitude=Decimal("0"), allowed_radius_m=50
     )
     farther = WorkLocation(
-        id=2, name="Far", latitude=Decimal("0.001100"), longitude=Decimal("0"), allowed_radius_m=100
+        id=2, name="Far", latitude=Decimal("0.001100"), longitude=Decimal("0"), allowed_radius_m=300
     )
     with pytest.raises(AppError) as error:
         verify_onsite([farther, closer], 0.0005, 0, 10, settings)

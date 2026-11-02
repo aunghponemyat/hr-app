@@ -146,14 +146,14 @@ class LocationCreate(RequestSchema):
     name: Name
     latitude: Decimal = Field(ge=-90, le=90, decimal_places=6)
     longitude: Decimal = Field(ge=-180, le=180, decimal_places=6)
-    allowed_radius_m: int = Field(default=100, ge=50, le=100)
+    allowed_radius_m: int = Field(default=100, ge=50, le=300)
 
 
 class LocationUpdate(PatchSchema):
     name: Name | None = None
     latitude: Decimal | None = Field(default=None, ge=-90, le=90, decimal_places=6)
     longitude: Decimal | None = Field(default=None, ge=-180, le=180, decimal_places=6)
-    allowed_radius_m: int | None = Field(default=None, ge=50, le=100)
+    allowed_radius_m: int | None = Field(default=None, ge=50, le=300)
 
 
 class LocationResponse(LocationCreate):

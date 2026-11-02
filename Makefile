@@ -39,5 +39,8 @@ test-db-up:
 migrate:
 	cd backend && poetry run alembic upgrade head
 
+enter-db:
+	docker compose exec mysql mysql -u hr_user -p hr_app
+
 seed-reference:
 	cd backend && poetry run python -m scripts.seed_reference_data

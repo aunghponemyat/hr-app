@@ -25,8 +25,8 @@ const schema = z.object({
   allowed_radius_m: z
     .number()
     .int()
-    .min(50, 'Use a radius of 50–100 m.')
-    .max(100, 'Use a radius of 50–100 m.'),
+    .min(50, 'Use a radius of 50–300 m.')
+    .max(300, 'Use a radius of 50–300 m.'),
 })
 export function LocationEditor({
   location,
@@ -43,7 +43,7 @@ export function LocationEditor({
       name: location?.name || '',
       latitude: location?.latitude || '',
       longitude: location?.longitude || '',
-      allowed_radius_m: location?.allowed_radius_m || 100,
+      allowed_radius_m: location?.allowed_radius_m || 300,
     },
   })
   const save = useMutation({
